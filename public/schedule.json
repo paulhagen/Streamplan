@@ -1,0 +1,30 @@
+{
+  "channel": "pxlprfct_",
+  "updatedAt": "2025-09-08T13:30:28.252Z",
+  "items": [
+    {
+      "id": "eyJzZWdtZW50SUQiOiJlYzVkYWJmNC02ZTQ0LTQyMjAtYmM2MC1kMjA1ZDdkNzQ1Y2YiLCJpc29ZZWFyIjoyMDI1LCJpc29XZWVrIjozN30=",
+      "title": "Streamstart",
+      "category": "Just Chatting",
+      "startTime": "2025-09-08T16:00:00Z",
+      "endTime": "2025-09-08T16:30:00Z",
+      "canceled": false
+    },
+    {
+      "id": "eyJzZWdtZW50SUQiOiJkZjlkZWFiZS1jNTQwLTQwYTctOTY0Ni03ZGEyYWY1MDUzYTAiLCJpc29ZZWFyIjoyMDI1LCJpc29XZWVrIjozN30=",
+      "title": "Maximaler Absturz - Mit Kaller & Tim",
+      "category": "Chained Together",
+      "startTime": "2025-09-08T16:30:00Z",
+      "endTime": "2025-09-08T19:30:00Z",
+      "canceled": false
+    },
+    {
+      "id": "eyJzZWdtZW50SUQiOiJiODYyNzllZC0zMDlmLTQ1NjMtYjJjNC1iMjcxMTM0ZTg1YWMiLCJpc29ZZWFyIjoyMDI1LCJpc29XZWVrIjozN30=",
+      "title": "💀 Rocket League 1s Schmerz 💀",
+      "category": "Rocket League",
+      "startTime": "2025-09-11T15:30:00Z",
+      "endTime": "2025-09-11T17:30:00Z",
+      "canceled": false
+    }
+  ]
+}
