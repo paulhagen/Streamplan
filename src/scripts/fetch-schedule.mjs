@@ -25,21 +25,34 @@ async function getUserId(token, login) {
 }
 
 async function getSchedule(token, broadcasterId) {
-    // Helix: GET /helix/schedule?broadcaster_id=...
     const res = await fetch(
         `https://api.twitch.tv/helix/schedule?broadcaster_id=${broadcasterId}&first=25`,
         { headers: { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` } }
     );
+    if (res.status === 404) return { data: null };
     if (!res.ok) throw new Error(`Schedule fetch failed: ${res.status} ${res.statusText}`);
     return res.json();
 }
 
-function normalize(items) {
+async function getBoxArts(token, categoryIds) {
+    if (!categoryIds.length) return {};
+    const url = new URL("https://api.twitch.tv/helix/games");
+    categoryIds.forEach(id => url.searchParams.append("id", id));
+    const res = await fetch(url, {
+        headers: { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` }
+    });
+    if (!res.ok) return {};
+    const { data } = await res.json();
+    return Object.fromEntries(data.map(g => [g.id, g.box_art_url]));
+}
+
+function normalize(items, boxArtMap) {
     return items.map(it => ({
         id: it.id,
-        // Titel bleibt als Fallback erhalten, angezeigt wird Kategorie:
         title: it.title ?? null,
-        category: it.category?.name || it.category?.title || null,
+        category: it.category?.name ?? null,
+        categoryId: it.category?.id ?? null,
+        boxArtUrl: it.category?.id ? (boxArtMap[it.category.id] ?? null) : null,
         startTime: it.start_time,
         endTime: it.end_time ?? null,
         canceled: Boolean(it.canceled_until)
@@ -54,7 +67,11 @@ async function main() {
     const userId = await getUserId(access_token, TWITCH_LOGIN);
     const raw = await getSchedule(access_token, userId);
 
-    const items = normalize(raw.data?.segments ?? []);
+    const segments = raw.data?.segments ?? [];
+    const categoryIds = [...new Set(segments.map(s => s.category?.id).filter(Boolean))];
+    const boxArtMap = await getBoxArts(access_token, categoryIds);
+
+    const items = normalize(segments, boxArtMap);
     await fs.mkdir("public", { recursive: true });
     await fs.writeFile(
         path.join("public", "schedule.json"),
