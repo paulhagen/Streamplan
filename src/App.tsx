@@ -263,7 +263,7 @@ export default function App() {
                             active={showAllWeeks}
                             style={{ whiteSpace: 'nowrap' }}
                         >
-                            {showAllWeeks ? 'Alle Wochen' : `KW ${kw}`}
+                            {showAllWeeks ? `Nur KW ${kw}` : 'Alle Wochen'}
                         </Button>
                         {data && (
                             <div style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.7, alignSelf: 'center', whiteSpace: 'nowrap', paddingLeft: 8 }}>
@@ -291,33 +291,36 @@ export default function App() {
                         {!loading && hasItems && Object.values(groups).map(({ label, items }, gi) => (
                             <DaySection key={label} $delay={gi * 80}>
                                 <DayHeader>{label}</DayHeader>
-                                {items.map((it, ri) => (
-                                    <SlotCard
-                                        key={it.id}
-                                        $delay={gi * 80 + ri * 50 + 40}
-                                        $canceled={it.canceled}
-                                    >
-                                        <BoxArtWrap>
-                                            {resolveBoxArt(it.boxArtUrl)
-                                                ? <BoxArt src={resolveBoxArt(it.boxArtUrl)!} alt={it.category ?? ''} loading="lazy" />
-                                                : <BoxArtPlaceholder>🎮</BoxArtPlaceholder>
-                                            }
-                                        </BoxArtWrap>
-                                        <SlotInfo>
-                                            <SlotTime>
-                                                ab {dayjs(it.startTime).format('HH:mm')} Uhr
-                                                {it.endTime && ` – ${dayjs(it.endTime).format('HH:mm')} Uhr`}
-                                            </SlotTime>
-                                            <SlotTitle style={{ textDecoration: it.canceled ? 'line-through' : 'none' }}>
-                                                {it.title || it.category || 'Stream'}
-                                            </SlotTitle>
-                                            {it.category && it.title && (
-                                                <SlotCategory>{it.category}</SlotCategory>
-                                            )}
-                                            {it.canceled && <CanceledBadge>Abgesagt</CanceledBadge>}
-                                        </SlotInfo>
-                                    </SlotCard>
-                                ))}
+                                {items.map((it, ri) => {
+                                    const boxArt = resolveBoxArt(it.boxArtUrl)
+                                    return (
+                                        <SlotCard
+                                            key={it.id}
+                                            $delay={gi * 80 + ri * 50 + 40}
+                                            $canceled={it.canceled}
+                                        >
+                                            <BoxArtWrap>
+                                                {boxArt
+                                                    ? <BoxArt src={boxArt} alt={it.category ?? ''} loading="lazy" />
+                                                    : <BoxArtPlaceholder>🎮</BoxArtPlaceholder>
+                                                }
+                                            </BoxArtWrap>
+                                            <SlotInfo>
+                                                <SlotTime>
+                                                    ab {dayjs(it.startTime).format('HH:mm')} Uhr
+                                                    {it.endTime && ` – ${dayjs(it.endTime).format('HH:mm')} Uhr`}
+                                                </SlotTime>
+                                                <SlotTitle style={{ textDecoration: it.canceled ? 'line-through' : 'none' }}>
+                                                    {it.title || it.category || 'Stream'}
+                                                </SlotTitle>
+                                                {it.category && it.title && (
+                                                    <SlotCategory>{it.category}</SlotCategory>
+                                                )}
+                                                {it.canceled && <CanceledBadge>Abgesagt</CanceledBadge>}
+                                            </SlotInfo>
+                                        </SlotCard>
+                                    )
+                                })}
                             </DaySection>
                         ))}
                     </WindowContent>
@@ -346,7 +349,7 @@ export default function App() {
 function Clock() {
     const [time, setTime] = useState(() => dayjs().format('HH:mm'))
     useEffect(() => {
-        const id = setInterval(() => setTime(dayjs().format('HH:mm')), 30_000)
+        const id = setInterval(() => setTime(dayjs().format('HH:mm')), 10_000)
         return () => clearInterval(id)
     }, [])
     return <>{time}</>
