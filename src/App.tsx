@@ -1,14 +1,175 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Window, WindowHeader, WindowContent, Button, Toolbar, Fieldset, Hourglass } from 'react95'
+import {
+    Window, WindowHeader, WindowContent,
+    Button, Toolbar, Hourglass, Fieldset
+} from 'react95'
+import { keyframes, styled } from 'styled-components'
 import * as htmlToImage from 'html-to-image'
 import dayjs from 'dayjs'
+import weekOfYear from 'dayjs/plugin/weekOfYear'
+import isoWeek from 'dayjs/plugin/isoWeek'
 import 'dayjs/locale/de'
+
+dayjs.extend(weekOfYear)
+dayjs.extend(isoWeek)
 dayjs.locale('de')
+
+// ── Animations ────────────────────────────────────────────────────────────────
+
+const slideUp = keyframes`
+  from { opacity: 0; transform: translateY(20px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+`
+const taskbarIn = keyframes`
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+`
+const groupIn = keyframes`
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+`
+const cardIn = keyframes`
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+`
+
+// ── Styled components ─────────────────────────────────────────────────────────
+
+const WindowWrap = styled.div`
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: ${slideUp} 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+`
+
+const TaskbarWrap = styled.div`
+  height: 40px;
+  background: #c0c0c0;
+  border-top: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  gap: 4px;
+  flex-shrink: 0;
+  animation: ${taskbarIn} 0.3s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+`
+
+const DaySection = styled.div<{ $delay: number }>`
+  animation: ${groupIn} 0.3s ease both;
+  animation-delay: ${p => p.$delay}ms;
+  margin-bottom: 24px;
+`
+
+const DayHeader = styled.div`
+  background: linear-gradient(to right, #000080, #1084d0);
+  color: #fff;
+  font-weight: 700;
+  font-size: 20px;
+  padding: 8px 12px;
+  letter-spacing: 0.3px;
+  margin-bottom: 10px;
+  user-select: none;
+`
+
+const SlotCard = styled.div<{ $delay: number; $canceled: boolean }>`
+  display: flex;
+  align-items: stretch;
+  border: 2px solid;
+  border-color: #fff #808080 #808080 #fff;
+  background: #c0c0c0;
+  margin-bottom: 6px;
+  opacity: ${p => p.$canceled ? 0.5 : 1};
+  animation: ${cardIn} 0.25s ease both;
+  animation-delay: ${p => p.$delay}ms;
+  overflow: hidden;
+  transition: border-color 0.1s;
+
+  &:hover { border-color: #dfdfdf #606060 #606060 #dfdfdf; }
+  &:active { border-color: #808080 #fff #fff #808080; }
+`
+
+const BoxArtWrap = styled.div`
+  width: 108px;
+  flex-shrink: 0;
+  background: #000;
+  border-right: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`
+
+const BoxArt = styled.img`
+  width: 108px;
+  height: 144px;
+  object-fit: cover;
+  display: block;
+`
+
+const BoxArtPlaceholder = styled.div`
+  width: 108px;
+  height: 144px;
+  background: repeating-linear-gradient(
+    45deg,
+    #808080 0px, #808080 2px,
+    #c0c0c0 2px, #c0c0c0 10px
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+`
+
+const SlotInfo = styled.div`
+  flex: 1;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+`
+
+const SlotTime = styled.div`
+  font-size: 16px;
+  color: #444;
+  font-variant-numeric: tabular-nums;
+`
+
+const SlotTitle = styled.div`
+  font-weight: 700;
+  font-size: 22px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+const SlotCategory = styled.div`
+  font-size: 16px;
+  color: #000080;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+const CanceledBadge = styled.span`
+  font-size: 13px;
+  background: #800000;
+  color: #fff;
+  padding: 2px 7px;
+  align-self: flex-start;
+`
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Item = {
     id: string
-    title?: string | null        // Fallback, wird nicht angezeigt, wenn category existiert
-    category?: string | null     // wird angezeigt
+    title?: string | null
+    category?: string | null
+    categoryId?: string | null
+    boxArtUrl?: string | null
     startTime: string
     endTime: string | null
     canceled: boolean
@@ -18,6 +179,16 @@ type Schedule = {
     channel: string
     updatedAt: string
     items: Item[]
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function currentIsoWeek() { return dayjs().isoWeek() }
+function itemIsoWeek(item: Item) { return dayjs(item.startTime).isoWeek() }
+
+function resolveBoxArt(url: string | null | undefined, w = 108, h = 144): string | null {
+    if (!url) return null
+    return url.replace('{width}', String(w)).replace('{height}', String(h))
 }
 
 function groupByDaySorted(items: Item[]) {
@@ -33,9 +204,12 @@ function groupByDaySorted(items: Item[]) {
     }, {})
 }
 
+// ── App ───────────────────────────────────────────────────────────────────────
+
 export default function App() {
     const [data, setData] = useState<Schedule | null>(null)
     const [loading, setLoading] = useState(true)
+    const [showAllWeeks, setShowAllWeeks] = useState(false)
     const refCapture = useRef<HTMLDivElement>(null)
 
     async function load() {
@@ -48,74 +222,135 @@ export default function App() {
 
     useEffect(() => { load() }, [])
 
-    const groups = useMemo(() => (data ? groupByDaySorted(data.items) : {}), [data])
+    const kw = currentIsoWeek()
+
+    const filteredItems = useMemo(() => {
+        if (!data) return []
+        if (showAllWeeks) return data.items
+        return data.items.filter(it => itemIsoWeek(it) === kw)
+    }, [data, showAllWeeks, kw])
+
+    const groups = useMemo(() => groupByDaySorted(filteredItems), [filteredItems])
 
     async function exportPng() {
         if (!refCapture.current) return
         const dataUrl = await htmlToImage.toPng(refCapture.current, { pixelRatio: 2 })
         const a = document.createElement('a')
         a.href = dataUrl
-        a.download = `streamplan_${data?.channel ?? 'channel'}.png`
+        a.download = `streamplan_kw${kw}_${data?.channel ?? 'channel'}.png`
         a.click()
     }
 
-    const rowStyle: React.CSSProperties = {
-        display: 'grid',
-        gridTemplateColumns: '160px 1fr 120px',
-        gap: 8,
-        alignItems: 'center',
-        padding: '6px 8px',
-        border: '1px solid rgba(0,0,0,.15)'
-    }
+    const hasItems = filteredItems.length > 0
 
     return (
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
-            <div ref={refCapture}>
-                <Window style={{ width: 900 }}>
-                    <WindowHeader>Schedule.exe</WindowHeader>
-                    <WindowContent>
-                        <Toolbar>
-                            <Button onClick={load}>Update</Button>
-                            <Button onClick={exportPng}>Als PNG exportieren</Button>
-                            <div style={{ marginLeft: 'auto', opacity: .7 }}>
-                                {data && `Stand: ${dayjs(data.updatedAt).format('DD.MM.YYYY HH:mm')}`}
-                            </div>
-                        </Toolbar>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
+            <WindowWrap ref={refCapture}>
+                <Window style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <WindowHeader style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                        <span>📅 Streamplan — KW {kw}</span>
+                        <span style={{ fontSize: 13, fontWeight: 'normal', opacity: 0.8 }}>
+                            {data?.channel ?? ''}
+                        </span>
+                    </WindowHeader>
 
+                    <Toolbar style={{ flexShrink: 0, flexWrap: 'nowrap', overflowX: 'auto' }}>
+                        <Button onClick={load} size="sm" style={{ whiteSpace: 'nowrap' }}>Aktualisieren</Button>
+                        <Button onClick={exportPng} size="sm" style={{ whiteSpace: 'nowrap' }}>PNG exportieren</Button>
+                        <Button
+                            onClick={() => setShowAllWeeks(v => !v)}
+                            size="sm"
+                            active={showAllWeeks}
+                            style={{ whiteSpace: 'nowrap' }}
+                        >
+                            {showAllWeeks ? `Nur KW ${kw}` : 'Alle Wochen'}
+                        </Button>
+                        {data && (
+                            <div style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.7, alignSelf: 'center', whiteSpace: 'nowrap', paddingLeft: 8 }}>
+                                Stand: {dayjs(data.updatedAt).format('DD.MM. HH:mm')}
+                            </div>
+                        )}
+                    </Toolbar>
+
+                    <WindowContent style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px' }}>
                         {loading && (
-                            <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:12 }}>
-                                <Hourglass /> <span>Lade Plan…</span>
+                            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 24 }}>
+                                <Hourglass size={48} />
+                                <span style={{ fontSize: 18 }}>Lade Streamplan…</span>
                             </div>
                         )}
 
-                        {!loading && data && data.items.length === 0 && (
-                            <Fieldset label="Hinweis" style={{ marginTop: 12 }}>
-                                Keine Einträge im Twitch-Schedule gefunden.
+                        {!loading && !hasItems && (
+                            <Fieldset label="Hinweis" style={{ marginTop: 16, fontSize: 16 }}>
+                                {showAllWeeks
+                                    ? 'Keine Einträge im Twitch-Schedule gefunden.'
+                                    : `Keine Streams für KW ${kw} geplant.`}
                             </Fieldset>
                         )}
 
-                        {!loading && data && data.items.length > 0 && (
-                            <div style={{ display:'grid', gap:16, marginTop: 12 }}>
-                                {Object.values(groups).map(({ label, items }) => (
-                                    <Fieldset key={label} label={label}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                            {items.map(it => (
-                                                <div key={it.id} style={rowStyle}>
-                                                    <div>ab {dayjs(it.startTime).format('HH:mm')}</div>
-                                                    <div>
-                                                        <b>{it.category ?? it.title ?? 'Stream'}</b>{' '}
-                                                        {it.canceled && <span style={{ opacity:.6 }}>(abgesagt)</span>}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </Fieldset>
-                                ))}
-                            </div>
-                        )}
+                        {!loading && hasItems && Object.values(groups).map(({ label, items }, gi) => (
+                            <DaySection key={label} $delay={gi * 80}>
+                                <DayHeader>{label}</DayHeader>
+                                {items.map((it, ri) => {
+                                    const boxArt = resolveBoxArt(it.boxArtUrl)
+                                    return (
+                                        <SlotCard
+                                            key={it.id}
+                                            $delay={gi * 80 + ri * 50 + 40}
+                                            $canceled={it.canceled}
+                                        >
+                                            <BoxArtWrap>
+                                                {boxArt
+                                                    ? <BoxArt src={boxArt} alt={it.category ?? ''} loading="lazy" />
+                                                    : <BoxArtPlaceholder>🎮</BoxArtPlaceholder>
+                                                }
+                                            </BoxArtWrap>
+                                            <SlotInfo>
+                                                <SlotTime>
+                                                    ab {dayjs(it.startTime).format('HH:mm')} Uhr
+                                                    {it.endTime && ` – ${dayjs(it.endTime).format('HH:mm')} Uhr`}
+                                                </SlotTime>
+                                                <SlotTitle style={{ textDecoration: it.canceled ? 'line-through' : 'none' }}>
+                                                    {it.title || it.category || 'Stream'}
+                                                </SlotTitle>
+                                                {it.category && it.title && (
+                                                    <SlotCategory>{it.category}</SlotCategory>
+                                                )}
+                                                {it.canceled && <CanceledBadge>Abgesagt</CanceledBadge>}
+                                            </SlotInfo>
+                                        </SlotCard>
+                                    )
+                                })}
+                            </DaySection>
+                        ))}
                     </WindowContent>
                 </Window>
-            </div>
+            </WindowWrap>
+
+            <TaskbarWrap>
+                <Button onClick={load} style={{ fontWeight: 'bold', minWidth: 80, height: 30 }}>
+                    🪟 Start
+                </Button>
+                <div style={{ width: 2, background: '#888', alignSelf: 'stretch', margin: '4px 4px' }} />
+                <div style={{ fontSize: 12, alignSelf: 'center' }}>📅 Schedule.exe</div>
+                <div style={{
+                    marginLeft: 'auto', fontSize: 12, alignSelf: 'center',
+                    padding: '2px 8px',
+                    border: '1px inset #c0c0c0',
+                    borderColor: '#808080 #fff #fff #808080',
+                }}>
+                    <Clock />
+                </div>
+            </TaskbarWrap>
         </div>
     )
+}
+
+function Clock() {
+    const [time, setTime] = useState(() => dayjs().format('HH:mm'))
+    useEffect(() => {
+        const id = setInterval(() => setTime(dayjs().format('HH:mm')), 10_000)
+        return () => clearInterval(id)
+    }, [])
+    return <>{time}</>
 }
