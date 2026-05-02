@@ -10,6 +10,7 @@ pages:
   script:
     - yarn pull
     - yarn build
+    - rm -rf public
     - mv dist public
   artifacts:
     paths:
