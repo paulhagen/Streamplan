@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { Window, WindowHeader, WindowContent, Button, Toolbar, Fieldset } from 'react95'
 import { keyframes, styled } from 'styled-components'
@@ -7,8 +7,13 @@ import dayjs from 'dayjs'
 import weekOfYear from 'dayjs/plugin/weekOfYear'
 import isoWeek from 'dayjs/plugin/isoWeek'
 import 'dayjs/locale/de'
+import { lazy } from 'react'
 import WeekGrid, { type Schedule } from './components/WeekGrid'
 import Taskbar from './components/Taskbar'
+
+const PipesScreen = lazy(() =>
+  import('./components/PipesScreen').then(m => ({ default: m.PipesScreen }))
+)
 
 dayjs.extend(weekOfYear)
 dayjs.extend(isoWeek)
@@ -158,6 +163,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<FullSchedulePage />} />
         <Route path="/current-week" element={<CurrentWeekPage />} />
+        <Route path="/pipes" element={<Suspense fallback={<div style={{ background: '#000', width: 800, height: 750 }} />}><PipesScreen /></Suspense>} />
       </Routes>
     </HashRouter>
   )
