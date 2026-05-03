@@ -155,16 +155,21 @@ export function PipesScreen() {
       pipes.length = 0
     }
 
+    let restarting = false
+
     function restart() {
+      restarting = true
       clearAll()
       if (mounted) {
         setTimeout(() => {
+          restarting = false
           if (mounted) for (let i = 0; i < 3; i++) spawnPipe()
         }, 1800)
       }
     }
 
     function stepPipes() {
+      if (restarting) return
       if (occupied.size / totalCells > RESTART_FILL) {
         restart()
         return
