@@ -39,16 +39,25 @@ export function PipesScreen() {
     let mounted = true
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
-    renderer.setSize(800, 750)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     el.appendChild(renderer.domElement)
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x000000)
 
-    const camera = new THREE.PerspectiveCamera(45, 800 / 750, 0.1, 500)
+    const camera = new THREE.PerspectiveCamera(45, el.clientWidth / el.clientHeight, 0.1, 500)
     camera.position.set(32, 24, 36)
     camera.lookAt(0, 0, 0)
+
+    function onResize() {
+      const w = el.clientWidth, h = el.clientHeight
+      renderer.setSize(w, h)
+      camera.aspect = w / h
+      camera.updateProjectionMatrix()
+    }
+    onResize()
+    const ro = new ResizeObserver(onResize)
+    ro.observe(el)
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.45))
     const sun = new THREE.DirectionalLight(0xffffff, 0.85)
@@ -209,6 +218,7 @@ export function PipesScreen() {
 
     return () => {
       mounted = false
+      ro.disconnect()
       clearInterval(ticker)
       cancelAnimationFrame(rafId)
       clearAll()
@@ -223,7 +233,7 @@ export function PipesScreen() {
   return (
     <div
       ref={mountRef}
-      style={{ width: 800, height: 750, background: '#000', overflow: 'hidden' }}
+      style={{ width: '100%', height: '100vh', background: '#000', overflow: 'hidden' }}
     />
   )
 }
