@@ -33,7 +33,7 @@ function useSchedule() {
 
   async function load() {
     setLoading(true)
-    const res = await fetch('/schedule.json', { cache: 'no-store' })
+    const res = await fetch(`${import.meta.env.BASE_URL}schedule.json`, { cache: 'no-store' })
     setData(await res.json())
     setLoading(false)
   }
@@ -48,7 +48,7 @@ function FullSchedulePage() {
   const { data, loading, load } = useSchedule()
   const [weekOffset, setWeekOffset] = useState(0)
   const refCapture = useRef<HTMLDivElement>(null)
-  const kw = dayjs().isoWeek() + weekOffset
+  const kw = dayjs().add(weekOffset, 'week').isoWeek()
 
   async function exportPng() {
     if (!refCapture.current) return
