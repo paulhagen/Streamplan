@@ -7,7 +7,11 @@
       "mcp__chrome_devtools__take_screenshot",
       "mcp__chrome_devtools__navigate_page",
       "mcp__chrome_devtools__take_snapshot",
-      "mcp__chrome_devtools__list_network_requests"
+      "mcp__chrome_devtools__list_network_requests",
+      "mcp__gitnexus__detect_changes",
+      "Bash(npx gitnexus *)",
+      "mcp__gitnexus__impact",
+      "Bash(yarn build *)"
     ]
   }
 }
