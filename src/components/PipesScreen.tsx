@@ -4,13 +4,14 @@ import { TeapotGeometry } from 'three/addons/geometries/TeapotGeometry.js'
 
 const W = 16, H = 12, D = 10
 const CELL = 2.8
-const GRID_RADIUS = Math.sqrt((W*CELL/2)**2 + (H*CELL/2)**2 + (D*CELL/2)**2) * 1.15
-const CAM_DIR = new THREE.Vector3(32, 24, 36).normalize()
+const CAM_POS = new THREE.Vector3(CELL * 0.6, CELL * 0.8, CELL * 13.5)
+const CAM_TARGET = new THREE.Vector3(0, 0, 0)
 const PIPE_R = 0.42
 const JOINT_R = 0.62
-const TICK_MS = 80
-const MAX_PIPES = 7
+const TICK_MS = 30
+const MAX_PIPES = 1
 const TEAPOT_CHANCE = 0.018
+const TURN_CHANCE = 0.40
 const RESTART_FILL = 0.72
 
 const PALETTE = [
@@ -47,18 +48,14 @@ export function PipesScreen() {
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x000000)
 
-    const camera = new THREE.PerspectiveCamera(45, el.clientWidth / el.clientHeight, 0.1, 1000)
+    const camera = new THREE.PerspectiveCamera(52, el.clientWidth / el.clientHeight, 0.1, 1000)
+    camera.position.copy(CAM_POS)
+    camera.lookAt(CAM_TARGET)
 
     function onResize() {
       const w = el.clientWidth, h = el.clientHeight
       renderer.setSize(w, h)
       camera.aspect = w / h
-      // Fit entire grid bounding sphere into frustum regardless of viewport size
-      const vHalf = (camera.fov / 2) * (Math.PI / 180)
-      const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect)
-      const dist = GRID_RADIUS / Math.tan(Math.min(vHalf, hHalf))
-      camera.position.copy(CAM_DIR.clone().multiplyScalar(dist))
-      camera.lookAt(0, 0, 0)
       camera.updateProjectionMatrix()
     }
     onResize()
@@ -163,7 +160,7 @@ export function PipesScreen() {
       if (mounted) {
         setTimeout(() => {
           restarting = false
-          if (mounted) for (let i = 0; i < 3; i++) spawnPipe()
+          if (mounted) spawnPipe()
         }, 1800)
       }
     }
@@ -186,7 +183,7 @@ export function PipesScreen() {
 
         let moved = false
 
-        if (inBounds(nx, ny, nz) && !occupied.has(key(nx, ny, nz))) {
+        if (inBounds(nx, ny, nz) && !occupied.has(key(nx, ny, nz)) && Math.random() > TURN_CHANCE) {
           addSegment(pipe.mat, toWorld(px, py, pz), toWorld(nx, ny, nz))
           occupied.add(key(nx, ny, nz))
           pipe.pos = [nx, ny, nz]
@@ -216,7 +213,7 @@ export function PipesScreen() {
       }
     }
 
-    for (let i = 0; i < 3; i++) spawnPipe()
+    spawnPipe()
 
     const ticker = setInterval(stepPipes, TICK_MS)
 
