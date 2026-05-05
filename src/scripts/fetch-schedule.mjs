@@ -82,17 +82,31 @@ async function getUserId(token, login) {
 }
 
 async function getSchedule(token, broadcasterId, startTime) {
-    const url = new URL("https://api.twitch.tv/helix/schedule");
-    url.searchParams.set("broadcaster_id", broadcasterId);
-    url.searchParams.set("first", "25");
-    url.searchParams.set("start_time", startTime);
+    const allSegments = [];
+    let cursor = null;
 
-    const res = await fetch(url, {
-        headers: { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` }
-    });
-    if (res.status === 404) return { data: null };
-    if (!res.ok) throw new Error(`Schedule fetch failed: ${res.status} ${res.statusText}`);
-    return res.json();
+    while (true) {
+        const url = new URL("https://api.twitch.tv/helix/schedule");
+        url.searchParams.set("broadcaster_id", broadcasterId);
+        url.searchParams.set("first", "25");
+        url.searchParams.set("start_time", startTime);
+        if (cursor) url.searchParams.set("after", cursor);
+
+        const res = await fetch(url, {
+            headers: { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` }
+        });
+        if (res.status === 404) return { data: null };
+        if (!res.ok) throw new Error(`Schedule fetch failed: ${res.status} ${res.statusText}`);
+
+        const page = await res.json();
+        const segments = page?.data?.segments ?? [];
+        allSegments.push(...segments);
+
+        cursor = page?.pagination?.cursor ?? null;
+        if (!cursor) break;
+    }
+
+    return { data: { segments: allSegments } };
 }
 
 async function getBoxArts(token, categoryIds) {
