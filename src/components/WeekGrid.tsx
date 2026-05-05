@@ -12,13 +12,14 @@ const cardIn = keyframes`
   to   { opacity: 1; transform: translateX(0); }
 `
 
-const DaySection = styled.div<{ $delay: number }>`
+const DaySection = styled.div<{ $delay: number; $pastDay: boolean }>`
   animation: ${groupIn} 0.3s ease both;
   animation-delay: ${p => p.$delay}ms;
   margin-bottom: 6px;
+  opacity: ${p => p.$pastDay ? 0.82 : 1};
 `
 
-const DayHeader = styled.div<{ $today: boolean }>`
+const DayHeader = styled.div<{ $today: boolean; $pastDay: boolean }>`
   background: ${p => p.$today
     ? 'linear-gradient(to right, #800000, #c04040)'
     : 'linear-gradient(to right, #000080, #1084d0)'};
@@ -42,14 +43,15 @@ const TodayBadge = styled.span`
   letter-spacing: 0;
 `
 
-const SlotCard = styled.div<{ $delay: number; $canceled: boolean }>`
+const SlotCard = styled.div<{ $delay: number; $canceled: boolean; $pastDay: boolean }>`
   display: flex;
   align-items: stretch;
   border: 2px solid;
   border-color: #fff #808080 #808080 #fff;
-  background: #c0c0c0;
+  background: ${p => p.$pastDay ? '#8f8f8f' : '#c0c0c0'};
   margin-bottom: 3px;
-  opacity: ${p => p.$canceled ? 0.55 : 1};
+  opacity: ${p => p.$canceled ? 0.55 : p.$pastDay ? 0.68 : 1};
+  filter: ${p => p.$pastDay ? 'brightness(0.82)' : 'none'};
   animation: ${cardIn} 0.2s ease both;
   animation-delay: ${p => p.$delay}ms;
   overflow: hidden;
@@ -71,11 +73,12 @@ const BoxArtWrap = styled.div`
   justify-content: center;
 `
 
-const BoxArt = styled.img`
+const BoxArt = styled.img<{ $pastDay: boolean }>`
   width: 60px;
   height: 80px;
   object-fit: cover;
   display: block;
+  filter: ${p => p.$pastDay ? 'grayscale(0.85) saturate(0.25) brightness(0.8)' : 'none'};
 `
 
 const BoxArtPlaceholder = styled.div`
@@ -179,6 +182,7 @@ function buildWeekDays(weekOffset: number) {
       key: d.format('YYYY-MM-DD'),
       label: d.format('dddd, DD.MM.YYYY'),
       isToday: d.isSame(today, 'day'),
+      isPastDay: d.isBefore(today, 'day'),
     }
   })
 }
@@ -189,6 +193,7 @@ function resolveBoxArt(url: string | null | undefined, w = 60, h = 80): string |
 }
 
 export default function WeekGrid({ data, loading, weekOffset }: Props) {
+  const now = dayjs()
   const weekDays = useMemo(() => buildWeekDays(weekOffset), [weekOffset])
 
   const byDay = useMemo(() => {
@@ -211,13 +216,13 @@ export default function WeekGrid({ data, loading, weekOffset }: Props) {
 
   return (
     <>
-      {weekDays.map(({ key, label, isToday }, gi) => {
+      {weekDays.map(({ key, label, isToday, isPastDay }, gi) => {
         const slots = (byDay[key] ?? []).sort(
           (a, b) => dayjs(a.startTime).valueOf() - dayjs(b.startTime).valueOf()
         )
         return (
-          <DaySection key={key} $delay={gi * 50}>
-            <DayHeader $today={isToday}>
+          <DaySection key={key} $delay={gi * 50} $pastDay={isPastDay}>
+            <DayHeader $today={isToday} $pastDay={isPastDay}>
               {label}
               {isToday && <TodayBadge>Heute</TodayBadge>}
             </DayHeader>
@@ -225,11 +230,17 @@ export default function WeekGrid({ data, loading, weekOffset }: Props) {
               ? <EmptyDay>Kein Stream geplant</EmptyDay>
               : slots.map((it, ri) => {
                   const boxArt = resolveBoxArt(it.boxArtUrl)
+                  const isPastDay = dayjs(it.startTime).isBefore(now, 'day')
                   return (
-                    <SlotCard key={it.id} $delay={gi * 50 + ri * 30 + 20} $canceled={it.canceled}>
+                    <SlotCard
+                      key={it.id}
+                      $delay={gi * 50 + ri * 30 + 20}
+                      $canceled={it.canceled}
+                      $pastDay={isPastDay}
+                    >
                       <BoxArtWrap>
                         {boxArt
-                          ? <BoxArt src={boxArt} alt={it.category ?? ''} loading="lazy" />
+                          ? <BoxArt $pastDay={isPastDay} src={boxArt} alt={it.category ?? ''} loading="lazy" />
                           : <BoxArtPlaceholder>🎮</BoxArtPlaceholder>
                         }
                       </BoxArtWrap>
