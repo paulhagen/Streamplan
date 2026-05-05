@@ -7,12 +7,15 @@ const SCHEDULE_HORIZON_DAYS = 90;
 
 function getCurrentWeekMondayIso() {
     const now = new Date();
-    const day = now.getDay();
-    const daysSinceMonday = (day + 6) % 7;
+    const utcDay = now.getUTCDay();
+    const daysSinceMonday = (utcDay + 6) % 7;
 
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - daysSinceMonday);
-    monday.setHours(0, 0, 0, 0);
+    const monday = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - daysSinceMonday,
+        0, 0, 0, 0
+    ));
 
     return monday.toISOString();
 }
@@ -123,14 +126,22 @@ async function getSchedule(token, broadcasterId, startTime) {
 
 async function getBoxArts(token, categoryIds) {
     if (!categoryIds.length) return {};
-    const url = new URL("https://api.twitch.tv/helix/games");
-    categoryIds.forEach(id => url.searchParams.append("id", id));
-    const res = await fetch(url, {
-        headers: { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` }
-    });
-    if (!res.ok) return {};
-    const { data } = await res.json();
-    return Object.fromEntries(data.map(g => [g.id, g.box_art_url]));
+    const headers = { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` };
+    const result = {};
+
+    for (let i = 0; i < categoryIds.length; i += 100) {
+        const chunk = categoryIds.slice(i, i + 100);
+        const url = new URL("https://api.twitch.tv/helix/games");
+        chunk.forEach(id => url.searchParams.append("id", id));
+        const res = await fetch(url, { headers });
+        if (!res.ok) continue;
+        const { data } = await res.json();
+        for (const game of data) {
+            result[game.id] = game.box_art_url;
+        }
+    }
+
+    return result;
 }
 
 function normalize(items, boxArtMap) {
