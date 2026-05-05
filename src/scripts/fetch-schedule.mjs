@@ -3,6 +3,67 @@ import path from "node:path";
 import 'dotenv/config';
 
 const { TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_LOGIN } = process.env;
+const SCHEDULE_HORIZON_DAYS = 90;
+
+function getCurrentWeekMondayIso() {
+    const now = new Date();
+    const utcDay = now.getUTCDay();
+    const daysSinceMonday = (utcDay + 6) % 7;
+
+    const monday = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - daysSinceMonday,
+        0, 0, 0, 0
+    ));
+
+    return monday.toISOString();
+}
+
+function getCurrentWeekBounds(now = new Date()) {
+    const day = now.getDay();
+    const daysSinceMonday = (day + 6) % 7;
+
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - daysSinceMonday);
+    weekStart.setHours(0, 0, 0, 0);
+
+    const nextWeekStart = new Date(weekStart);
+    nextWeekStart.setDate(weekStart.getDate() + 7);
+
+    return { weekStart, nextWeekStart };
+}
+
+function isPastDayInCurrentWeek(dateIso, now = new Date()) {
+    const date = new Date(dateIso);
+    if (Number.isNaN(date.getTime())) return false;
+
+    const { weekStart, nextWeekStart } = getCurrentWeekBounds(now);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    return date >= weekStart && date < nextWeekStart && date < todayStart;
+}
+
+async function loadExistingScheduleItems(filePath) {
+    try {
+        const content = await fs.readFile(filePath, "utf-8");
+        const parsed = JSON.parse(content);
+        return Array.isArray(parsed?.items) ? parsed.items : [];
+    } catch {
+        return [];
+    }
+}
+
+function mergeItems(existingItems, freshItems, now = new Date()) {
+    const freshById = new Map(freshItems.map(item => [item.id, item]));
+    const preservedFromExisting = existingItems.filter(
+        item => !freshById.has(item.id) && isPastDayInCurrentWeek(item.startTime, now)
+    );
+
+    return [...freshItems, ...preservedFromExisting]
+        .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+}
 
 async function getAppToken() {
     const url = new URL("https://id.twitch.tv/oauth2/token");
@@ -24,26 +85,63 @@ async function getUserId(token, login) {
     return data[0].id;
 }
 
-async function getSchedule(token, broadcasterId) {
-    const res = await fetch(
-        `https://api.twitch.tv/helix/schedule?broadcaster_id=${broadcasterId}&first=25`,
-        { headers: { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` } }
-    );
-    if (res.status === 404) return { data: null };
-    if (!res.ok) throw new Error(`Schedule fetch failed: ${res.status} ${res.statusText}`);
-    return res.json();
+async function getSchedule(token, broadcasterId, startTime) {
+    const allSegments = [];
+    let cursor = null;
+    const horizon = new Date();
+    horizon.setDate(horizon.getDate() + SCHEDULE_HORIZON_DAYS);
+
+    while (true) {
+        const url = new URL("https://api.twitch.tv/helix/schedule");
+        url.searchParams.set("broadcaster_id", broadcasterId);
+        url.searchParams.set("first", "25");
+        url.searchParams.set("start_time", startTime);
+        if (cursor) url.searchParams.set("after", cursor);
+
+        const res = await fetch(url, {
+            headers: { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` }
+        });
+        if (res.status === 404) return { data: null };
+        if (!res.ok) throw new Error(`Schedule fetch failed: ${res.status} ${res.statusText}`);
+
+        const page = await res.json();
+        const segments = page?.data?.segments ?? [];
+        const inHorizon = segments.filter(segment => {
+            const start = new Date(segment.start_time);
+            return !Number.isNaN(start.getTime()) && start <= horizon;
+        });
+        allSegments.push(...inHorizon);
+
+        const hasSegmentsBeyondHorizon = segments.some(segment => {
+            const start = new Date(segment.start_time);
+            return !Number.isNaN(start.getTime()) && start > horizon;
+        });
+
+        cursor = page?.pagination?.cursor ?? null;
+        if (!cursor || hasSegmentsBeyondHorizon) break;
+    }
+
+    return { data: { segments: allSegments } };
 }
 
 async function getBoxArts(token, categoryIds) {
     if (!categoryIds.length) return {};
-    const url = new URL("https://api.twitch.tv/helix/games");
-    categoryIds.forEach(id => url.searchParams.append("id", id));
-    const res = await fetch(url, {
-        headers: { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` }
-    });
-    if (!res.ok) return {};
-    const { data } = await res.json();
-    return Object.fromEntries(data.map(g => [g.id, g.box_art_url]));
+    const headers = { "Client-ID": TWITCH_CLIENT_ID, "Authorization": `Bearer ${token}` };
+    const result = {};
+
+    for (let i = 0; i < categoryIds.length; i += 100) {
+        const chunk = categoryIds.slice(i, i + 100);
+        const url = new URL("https://api.twitch.tv/helix/games");
+        chunk.forEach(id => url.searchParams.append("id", id));
+        const res = await fetch(url, { headers });
+        if (!res.ok) continue;
+        const { data } = await res.json();
+        for (const game of data) {
+            result[game.id] = game.box_art_url;
+        }
+    }
+
+    return result;
 }
 
 function normalize(items, boxArtMap) {
@@ -65,20 +163,24 @@ async function main() {
     }
     const { access_token } = await getAppToken();
     const userId = await getUserId(access_token, TWITCH_LOGIN);
-    const raw = await getSchedule(access_token, userId);
+    const startTime = getCurrentWeekMondayIso();
+    const raw = await getSchedule(access_token, userId, startTime);
 
     const segments = raw.data?.segments ?? [];
     const categoryIds = [...new Set(segments.map(s => s.category?.id).filter(Boolean))];
     const boxArtMap = await getBoxArts(access_token, categoryIds);
 
-    const items = normalize(segments, boxArtMap);
+    const freshItems = normalize(segments, boxArtMap);
+    const schedulePath = path.join("public", "schedule.json");
+    const existingItems = await loadExistingScheduleItems(schedulePath);
+    const items = mergeItems(existingItems, freshItems);
     await fs.mkdir("public", { recursive: true });
     await fs.writeFile(
-        path.join("public", "schedule.json"),
+        schedulePath,
         JSON.stringify({ channel: TWITCH_LOGIN, updatedAt: new Date().toISOString(), items }, null, 2)
     );
 
-    console.log(`Saved ${items.length} items → public/schedule.json`);
+    console.log(`Saved ${items.length} items -> public/schedule.json`);
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
