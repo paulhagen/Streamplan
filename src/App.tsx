@@ -73,9 +73,9 @@ function FullSchedulePage() {
     : false
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
       <WindowWrap ref={refCapture}>
-        <Window style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Window style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <WindowHeader style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <span>
               📅 Streamplan —{' '}
@@ -101,7 +101,7 @@ function FullSchedulePage() {
             )}
           </Toolbar>
 
-          <WindowContent style={{ flex: 1, overflowY: 'auto', padding: '10px 12px 6px' }}>
+          <WindowContent style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px 6px' }}>
             <WeekGrid data={data} loading={loading} weekOffset={weekOffset} />
             {hasOtherWeeks && (
               <Fieldset label="Weitere Streams" style={{ marginTop: 16, marginBottom: 16, fontSize: 13, color: '#666' }}>
@@ -123,9 +123,9 @@ function CurrentWeekPage() {
   const kw = dayjs().isoWeek()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
       <WindowWrap>
-        <Window style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <Window style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <WindowHeader style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <span>
               📅 Streamplan —{' '}
@@ -145,7 +145,7 @@ function CurrentWeekPage() {
             )}
           </Toolbar>
 
-          <WindowContent style={{ flex: 1, overflowY: 'auto', padding: '10px 12px 6px' }}>
+          <WindowContent style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 12px 6px' }}>
             <WeekGrid data={data} loading={loading} weekOffset={0} />
           </WindowContent>
         </Window>
