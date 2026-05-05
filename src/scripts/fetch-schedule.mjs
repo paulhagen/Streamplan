@@ -3,6 +3,7 @@ import path from "node:path";
 import 'dotenv/config';
 
 const { TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_LOGIN } = process.env;
+const SCHEDULE_HORIZON_DAYS = 90;
 
 function getCurrentWeekMondayIso() {
     const now = new Date();
@@ -84,6 +85,8 @@ async function getUserId(token, login) {
 async function getSchedule(token, broadcasterId, startTime) {
     const allSegments = [];
     let cursor = null;
+    const horizon = new Date();
+    horizon.setDate(horizon.getDate() + SCHEDULE_HORIZON_DAYS);
 
     while (true) {
         const url = new URL("https://api.twitch.tv/helix/schedule");
@@ -100,10 +103,19 @@ async function getSchedule(token, broadcasterId, startTime) {
 
         const page = await res.json();
         const segments = page?.data?.segments ?? [];
-        allSegments.push(...segments);
+        const inHorizon = segments.filter(segment => {
+            const start = new Date(segment.start_time);
+            return !Number.isNaN(start.getTime()) && start <= horizon;
+        });
+        allSegments.push(...inHorizon);
+
+        const hasSegmentsBeyondHorizon = segments.some(segment => {
+            const start = new Date(segment.start_time);
+            return !Number.isNaN(start.getTime()) && start > horizon;
+        });
 
         cursor = page?.pagination?.cursor ?? null;
-        if (!cursor) break;
+        if (!cursor || hasSegmentsBeyondHorizon) break;
     }
 
     return { data: { segments: allSegments } };
